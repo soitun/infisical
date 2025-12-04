@@ -43,7 +43,8 @@ import {
   TOrgPmtMethodsDTO,
   TPlanBillingInfo,
   TStartOrgTrialDTO,
-  TUpdateOrgBillingDetailsDTO
+  TUpdateOrgBillingDetailsDTO,
+  TUpdateOrgProductToPro
 } from "./license-types";
 
 type TLicenseServiceFactoryDep = {
@@ -553,6 +554,7 @@ export const licenseServiceFactory = ({
       const { data } = await licenseServerCloudApi.request.get<{
         head: { name: string }[];
         rows: { name: string; allowed: boolean }[];
+        productRows: Record<string, { name: string; allowed: boolean }[]>;
       }>(`${baseUrl}/${customerId}/cloud-plan/table`);
       return data;
     }
@@ -561,6 +563,7 @@ export const licenseServiceFactory = ({
       const { data } = await licenseServerOnPremApi.request.get<{
         head: { name: string }[];
         rows: { name: string; allowed: boolean }[];
+        productRows: Record<string, { name: string; allowed: boolean }[]>;
       }>(`${baseUrl}/on-prem-plan/table`);
       return data;
     }
@@ -597,7 +600,8 @@ export const licenseServiceFactory = ({
         rows: tableResponse.rows.map((row) => ({
           ...row,
           used: calculateUsageValue(row.name, "", projectCount, totalIdentities)
-        }))
+        })),
+        productRows: tableResponse.productRows
       };
     }
 
@@ -932,6 +936,58 @@ export const licenseServiceFactory = ({
     return selfHostedLicense?.licenseId;
   };
 
+  const updateOrgProductToPro = async ({
+    actorId,
+    actor,
+    actorAuthMethod,
+    actorOrgId,
+    orgId,
+    product
+  }: TUpdateOrgProductToPro) => {
+    const { permission } = await permissionService.getOrgPermission({
+      actorId,
+      actor,
+      orgId,
+      actorOrgId,
+      actorAuthMethod,
+      scope: OrganizationActionScope.ParentOrganization
+    });
+    ForbiddenError.from(permission).throwUnlessCan(
+      OrgPermissionBillingActions.ManageBilling,
+      OrgPermissionSubjects.Billing
+    );
+
+    const organization = await orgDAL.findById(orgId);
+    if (!organization) {
+      throw new NotFoundError({
+        message: `Organization with ID '${orgId}' not found`
+      });
+    }
+
+    const plan = await getPlan(organization.id);
+    if (plan.productPlans?.[product]?.startsWith("-pro"))
+      throw new BadRequestError({ message: "You are already a Pro User" });
+
+    try {
+      const { data } = await licenseServerCloudApi.request.post(
+        `/api/license-server/v1/customers/${organization.customerId}/upgrade-to-pro/${product}`
+      );
+      return data;
+    } catch (error) {
+      if (error instanceof AxiosError) {
+        throw new BadRequestError({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          message: `Failed to upgrade: ${error.response?.data?.message}`
+        });
+      }
+      throw new BadRequestError({
+        message: "Unable to upgrade"
+      });
+    } finally {
+      await invalidateGetPlan(orgId);
+    }
+  };
+
   return {
     generateOrgCustomerId,
     removeOrgCustomer,
@@ -966,6 +1022,7 @@ export const licenseServiceFactory = ({
     getOrgTaxIds,
     addOrgTaxId,
     delOrgTaxId,
-    initializeBackgroundSync
+    initializeBackgroundSync,
+    updateOrgProductToPro
   };
 };

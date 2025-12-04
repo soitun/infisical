@@ -121,6 +121,7 @@ export type OrgPlanTableRow = {
 export type OrgPlanTable = {
   head: OrgPlanTableHead[];
   rows: OrgPlanTableRow[];
+  productRows: Record<string, OrgPlanTableRow[]>;
 };
 
 export type ProductsTableHead = {
