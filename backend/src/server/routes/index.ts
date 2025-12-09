@@ -2313,12 +2313,9 @@ export const registerRoutes = async (
 
   const pkiAcmeService = pkiAcmeServiceFactory({
     projectDAL,
-    certificateDAL,
     certificateAuthorityDAL,
-    externalCertificateAuthorityDAL,
     certificateProfileDAL,
     certificateBodyDAL,
-    certificateSecretDAL,
     certificateTemplateV2DAL,
     acmeAccountDAL,
     acmeOrderDAL,
