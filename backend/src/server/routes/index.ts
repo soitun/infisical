@@ -2331,6 +2331,8 @@ export const registerRoutes = async (
     licenseService,
     certificateV3Service,
     certificateTemplateV2Service,
+    certificateRequestService,
+    certificateIssuanceQueue,
     acmeChallengeService,
     pkiAcmeQueueService
   });
